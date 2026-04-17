@@ -13,8 +13,8 @@ Explain how your project works
 
 ## How to test
 
-Explain how to use your project
+To ensure the reliability of the custom RISC-V SoC, I am implementing a multi-stage testing procedure on the FPGA. The process begins with verifying the UART Bootloader's ability to write binary data into the BRAM correctly. Once the memory is initialized and the 'ready' signal is active, I synchronize the system reset to the negative edge of the clock to prevent timing violations. Finally, I use SignalTap to monitor the QSPI communication, ensuring the CPU fetches instructions accurately from the virtual ROM without any signal contention.
 
 ## External hardware
 
-List external hardware used in your project (e.g. PMOD, LED display, etc), if any
+List external hardware used in your project (e.g. PMOD, LED display, etc), if any.
