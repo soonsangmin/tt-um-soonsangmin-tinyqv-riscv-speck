@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2024 Michael Bell
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 `define default_netname none
 
@@ -13,14 +17,8 @@ module tt_um_soonsangmin_tinyqv_riscv_speck(
     input  wire       ena,
 /*verilator lint_on UNUSEDSIGNAL*/
     input  wire       clk,
-    input  wire       rst_n,
-	 
-	 
-	 
-	 output wire       debug_uart_tx
+    input  wire       rst_n
 );
-
-	assign debug_uart_tx = uart_tx_start;
 
     // Address to peripheral map
     localparam PERI_NONE = 4'hF;
@@ -164,7 +162,7 @@ module tt_um_soonsangmin_tinyqv_riscv_speck(
         .debug_rd(debug_rd)
     );
 
-    assign uo_out[0] =  uart_txd;
+    assign uo_out[0] = gpio_out_sel[0] ? gpio_out[0] : uart_txd;
     assign uo_out[1] = gpio_out_sel[1] ? gpio_out[1] : uart_rts;
     assign uo_out[2] = gpio_out_sel[2] ? gpio_out[2] : 
                        debug_register_data ? debug_rd_r[0] : spi_dc;
@@ -211,7 +209,7 @@ module tt_um_soonsangmin_tinyqv_riscv_speck(
         end
     end
 
-    uart_tx #(.CLK_HZ(12_000_000), .BIT_RATE(115_200)) i_uart_tx(
+    uart_tx #(.CLK_HZ(64_000_000), .BIT_RATE(115_200)) i_uart_tx(
         .clk(clk),
         .resetn(rst_reg_n),
         .uart_txd(uart_txd),
@@ -220,7 +218,7 @@ module tt_um_soonsangmin_tinyqv_riscv_speck(
         .uart_tx_busy(uart_tx_busy) 
     );
 
-    uart_rx #(.CLK_HZ(12_000_000), .BIT_RATE(115_200)) i_uart_rx(
+    uart_rx #(.CLK_HZ(64_000_000), .BIT_RATE(115_200)) i_uart_rx(
         .clk(clk),
         .resetn(rst_reg_n),
         .uart_rxd(uart_rxd),
@@ -230,14 +228,14 @@ module tt_um_soonsangmin_tinyqv_riscv_speck(
         .uart_rx_data(uart_rx_data) 
     );
 
-    // uart_tx #(.CLK_HZ(64_000_000), .BIT_RATE(4_000_000)) i_debug_uart_tx(
-    //     .clk(clk),
-    //     .resetn(rst_reg_n),
-    //     .uart_txd(debug_uart_txd),
-    //     .uart_tx_en(debug_uart_tx_start),
-    //     .uart_tx_data(data_to_write[7:0]),
-    //     .uart_tx_busy(debug_uart_tx_busy) 
-    // );
+    uart_tx #(.CLK_HZ(64_000_000), .BIT_RATE(4_000_000)) i_debug_uart_tx(
+        .clk(clk),
+        .resetn(rst_reg_n),
+        .uart_txd(debug_uart_txd),
+        .uart_tx_en(debug_uart_tx_start),
+        .uart_tx_data(data_to_write[7:0]),
+        .uart_tx_busy(debug_uart_tx_busy) 
+    );
 
     spi_ctrl i_spi(
         .clk(clk),
