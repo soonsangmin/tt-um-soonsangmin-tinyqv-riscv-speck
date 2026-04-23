@@ -2,12 +2,11 @@
 # SPDX-License-Identifier: MIT
 
 import random
-import os
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, Timer
-from cocotb.triggers import FallingEdge
-import sys
+
 # This hack because it isn't easy to install requirements in the TT GitHub actions
 try:
     from riscvmodel.insn import *
@@ -193,8 +192,8 @@ async def expect_load(dut, addr, val):
     for i in range(8):
         await ClockCycles(dut.clk, 1)
         if int(dut.qspi_flash_select.value) == 0:
-            if hasattr(dut.i_cpu, "i_tinyqv"):
-                await start_read(dut, dut.i_cpu.i_tinyqv.instr_addr.value.to_unsigned() * 2)
+            if hasattr(dut.user_project, "i_tinyqv"):
+                await start_read(dut, dut.user_project.i_tinyqv.instr_addr.value.to_unsigned() * 2)
             else:
                 await start_read(dut, None)
             break
@@ -282,8 +281,8 @@ async def expect_store(dut, addr):
     for i in range(8):
         await ClockCycles(dut.clk, 1)
         if int(dut.qspi_flash_select.value) == 0:
-            if hasattr(dut.i_cpu, "i_tinyqv"):
-                await start_read(dut, dut.i_cpu.i_tinyqv.instr_addr.value.to_unsigned() * 2)
+            if hasattr(dut.user_project, "i_tinyqv"):
+                await start_read(dut, dut.user_project.i_tinyqv.instr_addr.value.to_unsigned() * 2)
             else:
                 await start_read(dut, None)
             break
@@ -1132,28 +1131,32 @@ async def test_speck_encryption(dut):
     assert rx == 0x8c6fa548, f"SAI x! Ky vong 0x8c6fa548 nhung nhan duoc 0x{rx:08X}"
     assert ry == 0x454e028b, f"SAI y! Ky vong 0x454e028b nhung nhan duoc 0x{ry:08X}"
     
-    dut._log.info("✔ - HUYATIEO_TINYQV DA CHAY THANH CONG THUAT TOAN SPECK NSA :))")
-
-@cocotb.test()
-async def test_dump(dut):
-    dut._log.info("▶ BAT DAU CHAY CODE TU VERILOG QSPI FLASH")
+    dut._log.info("✔ MCU DA CHAY THANH CONG THUAT TOAN SPECK NSA :))")
     
-    # 1. Khởi tạo xung nhịp
-    clock = Clock(dut.clk, 20.0, unit="ns")
-    cocotb.start_soon(clock.start())
-
-    # 2. KHỞI TẠO RESET VỚI LATENCY = 3 (BẮT BUỘC THEO THIẾT KẾ CỦA TÁC GIẢ)
-    await reset(dut, 2)
+# change Makefile to run below test case:
+# TOPLEVEL = tb_qspi
+# VERILOG_SOURCES += $(PWD)/tb_qspi.v $(PWD)/sim_qspi.v
     
-    dut._log.info("✔ CPU đã được Reset với Latency = 3, đang tự động nã lệnh...")
+#@cocotb.test()
+# async def test_dump(dut):
+    # dut._log.info("▶ BAT DAU CHAY CODE TU VERILOG QSPI FLASH")
+    
+    # # 1. Khởi tạo xung nhịp
+    # clock = Clock(dut.clk, 20.0, unit="ns")
+    # cocotb.start_soon(clock.start())
 
-    # 3. Chờ CPU chạy. (prime.hex tính số nguyên tố rất lâu, nên chờ hẳn 5000 cycles)
-    await ClockCycles(dut.clk, 50010)
+    # # 2. KHỞI TẠO RESET VỚI LATENCY = 3 (BẮT BUỘC THEO THIẾT KẾ CỦA TÁC GIẢ)
+    # await reset(dut, 2)
+    
+    # dut._log.info("✔ CPU đã được Reset với Latency = 3, đang tự động nã lệnh...")
 
-    # 4. In kết quả
-    dut._log.info("=" * 40)
-    dut._log.info(" KẾT QUẢ THANH GHI SAU KHI CHẠY ASSEMBLY")
-    dut._log.info("=" * 40)
+    # # 3. Chờ CPU chạy. (prime.hex tính số nguyên tố rất lâu, nên chờ hẳn 5000 cycles)
+    # await ClockCycles(dut.clk, 50010)
+
+    # # 4. In kết quả
+    # dut._log.info("=" * 40)
+    # dut._log.info(" KẾT QUẢ THANH GHI SAU KHI CHẠY ASSEMBLY")
+    # dut._log.info("=" * 40)
 
     for i in range(16):
         try:
@@ -1162,7 +1165,7 @@ async def test_dump(dut):
                 continue
             
             # Giữ nguyên đường dẫn Hierarchy siêu dài bro đã tìm ra
-            reg_val = dut.i_cpu.i_tinyqv.cpu.i_core.i_registers.registers[i].value
+            reg_val = dut.user_project.i_tinyqv.cpu.i_core.i_registers.registers[i].value
             
             if reg_val.is_resolvable:
                 dut._log.info(f"x{i:<2} = 0x{reg_val.integer:08X}")
@@ -1173,217 +1176,3 @@ async def test_dump(dut):
             dut._log.error(f"Lỗi truy cập x{i}: {e}")
 
     dut._log.info("=" * 40)
-
-# Định nghĩa các hàm mã máy custom của bro
-def encode_speck_sum(rd, rs1, rs2):
-    return 0x0B | (rd << 7) | (0b000 << 12) | (rs1 << 15) | (rs2 << 20) | (0 << 25)
-
-def encode_speck_xor(rd, rs1, rs2):
-    return 0x0B | (rd << 7) | (0b001 << 12) | (rs1 << 15) | (rs2 << 20) | (0 << 25)
-
-# ==============================================================================
-# COROUTINE: VIRTUAL UART RECEIVER (MÁY ĐỌC TRỘM CHÂN TX)
-# ==============================================================================
-async def uart_rx_monitor(tx_signal, baud_rate, logger):
-    # Sử dụng ps để độ chính xác tuyệt đối
-    bit_duration_ns = 1e9 / baud_rate
-    
-    # 1. Đợi tín hiệu ổn định
-    while not tx_signal.value.is_resolvable or tx_signal.value != 1:
-        await Timer(100, unit="ns")
-        
-    logger.info(f"📡 [UART RX] Monitor started at {baud_rate} bps...")
-
-    full_string = "" # Biến tạm để gom chữ
-
-    while True:
-        # 2. Đợi Bit Start
-        await FallingEdge(tx_signal)
-        
-        # 3. Nhảy đến GIỮA bit dữ liệu đầu tiên (1.5 bit)
-        await Timer(round(bit_duration_ns * 1.5), unit="ns")
-        
-        byte_val = 0
-        for i in range(8):
-            # Đọc bit (Xử lý nếu là X/Z thì coi như là 1)
-            val = tx_signal.value.integer if tx_signal.value.is_resolvable else 1
-            byte_val |= (val << i)
-            await Timer(round(bit_duration_ns), unit="ns")
-            
-        # 4. Xử lý hiển thị
-        char = chr(byte_val) if 32 <= byte_val <= 126 else f"[{hex(byte_val)}]"
-        
-        # CÁCH 1: In trực tiếp ra terminal (Dễ nhìn nhất)
-        sys.stdout.write(char)
-        sys.stdout.flush() 
-
-        # CÁCH 2: Nếu cách 1 không ra, dùng logger để ép nó hiện ra
-        if byte_val == 10 or len(full_string) > 20: # Nếu gặp xuống dòng hoặc đủ dài
-            logger.info(f"📝 UART Received: {full_string}")
-            full_string = ""
-        else:
-            full_string += char
-
-# ==============================================================================
-# MAIN TEST
-# ==============================================================================
-@cocotb.test()
-async def test_uart_hello(dut):
-    # Tạo clock 12MHz (Chu kỳ ~83.33 ns)
-    clock = Clock(dut.clk_12mhz, 83.33, unit="ns")
-    cocotb.start_soon(clock.start())
-
-    # ==========================================================================
-    # QUYẾT ĐỊNH BAUD RATE ĐỂ BẮT SÓNG
-    # Nếu bro ĐÃ SỬA file uart_tx.v thành 12Mhz -> baud_rate = 115200
-    # Nếu bro CHƯA SỬA (để gốc 64Mhz) -> baud_rate = 21600
-    # ==========================================================================
-    EXPECTED_BAUD = 115200 
-    
-    # Bật máy đọc trộm chạy ngầm
-    cocotb.start_soon(uart_rx_monitor(dut.tx_pin, EXPECTED_BAUD, dut._log))
-
-    dut._log.info("▶ BAT DAU RESET CPU...")
-    dut.rst_n_btn.value = 0
-    await ClockCycles(dut.clk_12mhz, 20)
-    
-    dut.rst_n_btn.value = 1
-    dut._log.info("✔ ĐÃ NHẢ RESET. CPU ĐANG CHẠY...")
-
-    # Chạy mô phỏng trong 3 mili-giây (Đủ thời gian để in vài chữ "hello" ở 115200)
-    await Timer(3, unit="ms")
-# ==============================================================================
-# COROUTINE: VIRTUAL UART TRANSMITTER (ĐÓNG VAI TRÒ LÀ PC GỬI FILE QUA CHÂN RX)
-# ==============================================================================
-async def uart_tx_send_byte(rx_pin, baud_rate, byte_val):
-    # Dùng đơn vị picosecond (ps) để chia không bị sai số làm tròn tích lũy
-    bit_duration_ps = round(1e12 / baud_rate) 
-    
-    # 1. Gửi Start Bit (Kéo xuống 0)
-    rx_pin.value = 0
-    await Timer(bit_duration_ps, unit="ps")
-    
-    # 2. Gửi 8 Data Bits (LSB first - Bit thấp gửi trước)
-    for i in range(8):
-        bit = (byte_val >> i) & 1
-        rx_pin.value = bit
-        await Timer(bit_duration_ps, unit="ps")
-        
-    # 3. Gửi Stop Bit (Kéo lên 1)
-    rx_pin.value = 1
-    await Timer(bit_duration_ps, unit="ps")
-
-async def uart_tx_send_array(rx_pin, baud_rate, data_array, logger):
-    logger.info(f"🚀 [UART TX] Đang bơm {len(data_array)} bytes vào chân RX ở tốc độ {baud_rate} bps...")
-    for b in data_array:
-        await uart_tx_send_byte(rx_pin, baud_rate, b)
-    logger.info(f"✔ [UART TX] Bơm xong dữ liệu!")
-# ==============================================================================
-# MAIN TEST: BƠM DỮ LIỆU VÀO ROM VÀ KIỂM TRA MẠCH CHỐT
-# ==============================================================================
-@cocotb.test()
-async def test_write_uart_to_rom(dut):
-    dut._log.info("🔍 ĐANG TÌM KIẾM CẤU TRÚC BÊN TRONG TOP MODULE:")
-    
-    # 1. Khởi tạo clock và reset
-    clock = Clock(dut.clk_12mhz, 83.33, unit="ns")
-    cocotb.start_soon(clock.start())
-    
-    dut.rx_pin.value = 1
-    dut.rst_n_btn.value = 0
-    await ClockCycles(dut.clk_12mhz, 50)
-    dut.rst_n_btn.value = 1
-
-# KÍCH HOẠT GIÁM SÁT UART NGAY TẠI ĐÂY
-    cocotb.start_soon(uart_rx_monitor(dut.tx_pin, 115200, dut._log))
-    # 2. Đọc dữ liệu từ file hex
-    hex_path = "/home/mtheresadoan/Downloads/fpga/fpga/test/asm/uart/uart.hex"
-    try:
-        test_data = load_hex_file(hex_path)
-        dut._log.info(f"📂 Đã đọc {len(test_data)} bytes từ file hex.")
-    except Exception as e:
-        dut._log.error(f"❌ Không thể đọc file hex: {e}")
-        return
-
-    # 3. Gửi dữ liệu qua UART (Máy tính nạp code vào FPGA)
-    baud_rate = 115200
-    await uart_tx_send_array(dut.rx_pin, baud_rate, test_data, dut._log)
-
-    # 4. Chờ nạp xong và bộ đệm Timeout (0.1s)
-    dut._log.info("⏳ Đang chờ mạch chốt dữ liệu (Timeout 0.1s)...")
-    await Timer(110, unit="ms") 
-
-    dut._log.info("✅ Code đã nạp thành công. CPU bắt đầu chạy và in UART...")
-    await ClockCycles(dut.clk_12mhz, 100000)
-
-    # In 16 byte đầu tiên của ROM để kiểm tra xem UART đã ghi đúng chưa
-    dut._log.info("🔍 DỮ LIỆU THỰC TẾ TRONG ROM (16 BYTES ĐẦU):")
-    for i in range(16):
-        # Truy cập vào mảng rom bên trong i_fake_rom
-        val = dut.i_fake_rom.rom[i].value
-        if val.is_resolvable:
-            dut._log.info(f"ROM[{i:04X}] = 0x{val.integer:02X}")
-        else:
-            dut._log.info(f"ROM[{i:04X}] = 0xXX (Chưa ghi)")
-    
-    assert dut.qspi_ready.value == 1, "❌ LỖI: QSPI Ready không bật, nạp code thất bại!"
-    dut._log.info("✅ Code đã nạp vào BRAM thành công. CPU bắt đầu thực thi...")
-
-    # 5. Chờ CPU chạy thuật toán Speck (tốn khá nhiều chu kỳ)
-    # Vì đây là mô phỏng, ta chờ khoảng vài chục ngàn chu kỳ clock
-    await ClockCycles(dut.clk_12mhz, 50000)
-
-    # 6. Kiểm tra kết quả trong thanh ghi CPU
-    # Dựa vào file hex của bạn, kết quả sẽ nằm trong các thanh ghi x1, x2...
-    dut._log.info("=" * 45)
-    dut._log.info(" ĐĂNG KIỂM THANH GHI SAU KHI CHẠY SPECK")
-    dut._log.info("=" * 45)
-
-    for i in range(1, 16):
-        # Truy cập vào phân cấp registers của tinyqv
-        reg_val = dut.i_cpu.i_tinyqv.cpu.i_core.i_registers.registers[i].value
-        
-        if reg_val.is_resolvable:
-            dut._log.info(f"x{i:<2} = 0x{reg_val.to_unsigned():08X}")
-        else:
-            dut._log.info(f"x{i:<2} = 0xXXXXXXXX (Chưa xác định)")
-    dut._log.info("=" * 45)
-
-def load_hex_file(file_path):
-    data = []
-    with open(file_path, 'r') as f:
-        for line in f:
-            # Bỏ qua dòng trống hoặc comment nếu có
-            bytes_in_line = line.strip().split()
-            for b in bytes_in_line:
-                data.append(int(b, 16))
-    return data
-
-async def uart_rx_monitor(tx_signal, baud_rate, logger):
-    bit_duration_ns = 1e9 / baud_rate
-    
-    # Đợi tín hiệu ổn định ở mức cao (Idle)
-    while not tx_signal.value.is_resolvable or tx_signal.value != 1:
-        await Timer(100, unit="ns")
-        
-    logger.info(f"📡 [UART RX Monitor] Bắt đầu nghe chân TX tại {baud_rate} bps...")
-
-    while True:
-        # 1. Đợi Start Bit (Cạnh xuống)
-        await FallingEdge(tx_signal)
-        
-        # 2. Nhảy đến giữa bit dữ liệu đầu tiên (1.5 bit duration)
-        await Timer(round(bit_duration_ns * 1.5), unit="ns")
-        
-        byte_val = 0
-        for i in range(8):
-            # Đọc bit (LSB first)
-            # val = tx_signal.value.integer if tx_signal.value.is_resolvable else 1
-            val = int(tx_signal.value) if tx_signal.value.is_resolvable else 1
-            byte_val |= (val << i)
-            await Timer(round(bit_duration_ns), unit="ns")
-            
-        # 3. Chuyển đổi sang ký tự và in ra Terminal
-        char = chr(byte_val) if 32 <= byte_val <= 126 else f"[{hex(byte_val)}]"
-        sys.stdout.write(char)
-        sys.stdout.flush()
